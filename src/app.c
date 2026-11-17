@@ -3,8 +3,7 @@
  * Fixed-point physics, no heap, SDL, or device-specific game logic.
  */
 #include "app.h"
-enum { KEY_RETURN=170, KEY_PLAY=171, KEY_PREV=172, KEY_NEXT=173,
-       KEY_CENTER=218, KEY_LEFT=222, KEY_RIGHT=223 };
+enum { KEY_RETURN=170, KEY_CENTER=218 };
 static unsigned random_next(FlappyApp *a) {
     unsigned v=(unsigned)a->seed;
     v=v*1664525u+1013904223u;
@@ -30,18 +29,13 @@ static void flap(FlappyApp *a) {
     a->started=1;
     a->velocity256=-5*256;
 }
+/* Input follows Dino Runner: only a released physical centre key flaps.
+ * Wheel movement and touchscreen signals are not gameplay commands. */
 static int game_input(void *context,Q2GameInput event) {
     FlappyApp *a=(FlappyApp *)context;
-    if(event.action==Q2_GAME_CENTER || event.action==Q2_GAME_TOUCH_UP ||
-       event.action==Q2_GAME_NEXT || event.action==Q2_GAME_PREV ||
-       event.action==Q2_GAME_WHEEL) {
-        if(a->dead) {
-            q2_game_restart(&a->runner);
-        }
-        flap(a);
-        return 1;
-    }
-    return 0;
+    if(event.action!=Q2_GAME_CENTER) return 0;
+    flap(a);
+    return 1;
 }
 static void game_step(void *context,unsigned ms) {
     FlappyApp *a=(FlappyApp *)context;
@@ -95,37 +89,28 @@ static int parse_int(const char *s,int *out) {
     *out=neg?-n:n;
     return 1;
 }
-int app_input(FlappyApp *a,const char *m) {
-    if(!m || m[1]!=' ')return 0;
-    int v=0;
-    if(m[0]=='w') {
-        if(!parse_int(m+2,&v) || v==0)return 0;
-        return q2_game_input(&a->runner,(Q2GameInput){Q2_GAME_WHEEL,v,0,0});
+int app_input(FlappyApp *a,const char *message) {
+    /* Same key-release protocol as q2-dino-runner/src/app.c:
+     * k u 218 = centre, k u 170 = return.
+     * Ignore click-wheel motion and touch packets entirely. */
+    if(!message || !message[0] || message[1]!=' ' ||
+       !message[2] || message[3]!=' ' ||
+       message[0]!='k' || message[2]!='u') return 0;
+    int key=0;
+    if(!parse_int(message+4,&key)) return 0;
+    if(key==KEY_RETURN) {
+        if(a->runner.status==Q2_GAME_PAUSED) a->quit=1;
+        else q2_game_pause(&a->runner);
+        return 1;
     }
-    if(m[2]!='u' || m[3]!=' ' || !parse_int(m+4,&v))return 0;
-    if(m[0]=='k' && m[2]=='u') {
-        if(v==KEY_RETURN) { a->quit=1; return 1; }
-        if(v==KEY_PLAY) {
-            if(a->runner.status==Q2_GAME_OVER) {
-                q2_game_restart(&a->runner);flap(a);
-            } else if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
-            else q2_game_pause(&a->runner);
-            return 1;
-        }
-        if(v==KEY_CENTER || v==KEY_LEFT || v==KEY_RIGHT ||
-           v==KEY_NEXT || v==KEY_PREV) {
-            if(a->runner.status==Q2_GAME_OVER) { q2_game_restart(&a->runner);flap(a);return 1; }
+    if(key==KEY_CENTER) {
+        if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
+        else if(a->runner.status==Q2_GAME_OVER) {
+            q2_game_restart(&a->runner);
+            flap(a);
+        } else
             return q2_game_input(&a->runner,(Q2GameInput){Q2_GAME_CENTER,0,0,0});
-        }
-    }
-    if(m[0]=='t'&&m[2]=='u') {
-        if(v<0||v>=SCREEN_W)return 0;
-        int y=0;
-        const char *p=m+4;
-        while(*p && *p!=' ')++p;
-        if(!parse_int(p,&y)||y<0||y>=SCREEN_H)return 0;
-        if(a->runner.status==Q2_GAME_OVER){q2_game_restart(&a->runner);flap(a);return 1;}
-        return q2_game_input(&a->runner,(Q2GameInput){Q2_GAME_TOUCH_UP,0,v,y});
+        return 1;
     }
     return 0;
 }
