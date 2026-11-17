@@ -17,7 +17,9 @@ Download `q2-flappybird.zip` from a successful Actions build artifact (extract i
 
 - **Centre click:** start, flap, and retry immediately on button down; key release does not flap again.
 - **Tap screen:** start, flap, resume, or retry (on touch-down, as in Dino Runner).
-- **Return:** pause; Return again while paused to exit.
+- **Return while playing:** pause; press Return again to exit.
+- **Return on Game Over:** open an options box; press Return again to exit.
+- **Centre or tap on Game Over:** retry, including when the options box is displayed.
 - **Centre while paused:** resume without an accidental flap.
 - Touch-down immediately flaps, using Dino Runner's coordinate parser. Touch-up, movement, and wheel rotation are ignored.
 

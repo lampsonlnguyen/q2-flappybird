@@ -39,8 +39,19 @@ int main(void) {
     q2_game_over(&a.runner);
     assert(app_input(&a,"t d 185 160"));
     assert(a.runner.status==Q2_GAME_RUNNING && a.started);
+    /* Game-over Back opens the same options box; Back again exits. */
+    q2_game_over(&a.runner);
+    a.dead=1;
+    assert(!a.exit_menu);
     assert(app_input(&a,"k u 170"));
+    assert(a.exit_menu && !a.quit && a.runner.status==Q2_GAME_OVER);
+    assert(app_input(&a,"t d 185 160"));
+    assert(!a.exit_menu && !a.dead && a.runner.status==Q2_GAME_RUNNING);
+    q2_game_over(&a.runner);
+    a.dead=1;
+    assert(app_input(&a,"k u 170"));
+    assert(a.exit_menu && !a.quit);
     assert(app_input(&a,"k u 170") && a.quit);
-    puts("Dino Runner touch-down and immediate Centre controls passed");
+    puts("Q2 touch, Center, pause and game-over exit menu tests passed");
     return 0;
 }

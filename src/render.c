@@ -90,10 +90,10 @@ void app_render(const FlappyApp *a,u32 *d,unsigned s){
         centered(d,s,194,"CENTER TO FLAP",ink,3);
         centered(d,s,223,"AVOID THE PIPES",ink,1);
     }
-    if(a->runner.status==Q2_GAME_PAUSED){
+    if(a->runner.status==Q2_GAME_PAUSED || a->exit_menu){
         fill(d,s,59,96,257,113,0xf9f1c8);
-        centered(d,s,115,"PAUSED",ink,3);
-        centered(d,s,153,"PLAY TO RESUME",ink,1);
+        centered(d,s,115,a->exit_menu?"GAME OVER":"PAUSED",ink,3);
+        centered(d,s,153,a->exit_menu?"CENTER TO RETRY":"CENTER TO RESUME",ink,1);
         centered(d,s,172,"BACK TO EXIT",ink,1);
     } else if(a->dead){
         fill(d,s,57,78,261,148,0xf9f1c8);

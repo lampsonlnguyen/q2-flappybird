@@ -17,6 +17,7 @@ static void game_reset(void *context) {
     a->score=0;
     a->started=0;
     a->dead=0;
+    a->exit_menu=0;
     a->ticks=0;
     a->spawn_ticks=0;
     a->center_down=0;
@@ -91,6 +92,7 @@ static int decimal(const char **message) {
     return *p>='0'&&*p<='9' ? -1 : value;
 }
 static int play_action(FlappyApp *a,Q2GameAction action,int x,int y) {
+    a->exit_menu=0;
     if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
     if(a->runner.status==Q2_GAME_OVER) q2_game_restart(&a->runner);
     return q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
@@ -103,8 +105,12 @@ int app_input(FlappyApp *a,const char *message) {
     if(message[0]=='k') {
         if(value<0) return 0;
         if(value==KEY_RETURN && message[2]=='u') {
-            if(a->runner.status==Q2_GAME_PAUSED) a->quit=1;
-            else q2_game_pause(&a->runner);
+            if(a->runner.status==Q2_GAME_PAUSED || a->exit_menu)
+                a->quit=1;
+            else if(a->runner.status==Q2_GAME_OVER)
+                a->exit_menu=1;
+            else
+                q2_game_pause(&a->runner);
             return 1;
         }
         if(value!=KEY_CENTER) return 0;
