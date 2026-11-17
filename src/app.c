@@ -20,7 +20,6 @@ static void game_reset(void *context) {
     a->ticks=0;
     a->spawn_ticks=0;
     a->touch_down=0;
-    a->touch_flapped=0;
     a->center_down=0;
     for(int i=0;i<PIPE_COUNT;++i) {
         a->pipes[i].x=SCREEN_W+50+i*172;
@@ -34,8 +33,7 @@ static void flap(FlappyApp *a) {
     /* Show the flap immediately, without waiting for a physics tick. */
     a->y256-=2*256;
 }
-/* Match Dino Runner: centre key release and touchscreen press flap.
- * Wheel rotation and touch-release packets must not flap. */
+/* Centre key presses and first touchscreen contact flap immediately. */
 static int game_input(void *context,Q2GameInput event) {
     FlappyApp *a=(FlappyApp *)context;
     if(event.action!=Q2_GAME_CENTER && event.action!=Q2_GAME_TOUCH_DOWN) return 0;
@@ -99,8 +97,8 @@ static int play_action(FlappyApp *a,Q2GameAction action,int x,int y) {
     if(a->runner.status==Q2_GAME_OVER) q2_game_restart(&a->runner);
     return q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
 }
-/* Parse a touch point with the same landscape coordinates as Q2 Pod.
- * Detect complete taps even if a firmware version drops the down event. */
+/* Parse the two coordinates that Q2 Pod sends on touch down/move.
+ * Unlike a touch release, these coordinates must be within the display. */
 static int touch_point(const char *p,int *x,int *y) {
     if(!parse_int(p,x)) return 0;
     while(*p==' ') ++p;
@@ -110,6 +108,8 @@ static int touch_point(const char *p,int *x,int *y) {
     return *x>=0 && *x<SCREEN_W && *y>=0 && *y<SCREEN_H;
 }
 int app_input(FlappyApp *a,const char *message) {
+    /* Firmware input protocol from DiamondBond/q2-pod patch/addon.c:
+     * k d/u KEY, t d/m/u X Y, w N. */
     if(!message || !message[0] || message[1]!=' ' ||
        !message[2] || message[3]!=' ') return 0;
     if(message[0]=='k' && (message[2]=='u'||message[2]=='d')) {
@@ -121,39 +121,37 @@ int app_input(FlappyApp *a,const char *message) {
             else q2_game_pause(&a->runner);
             return 1;
         }
-        if(key==KEY_CENTER) {
-            if(message[2]=='d') {
-                /* Act on the initial press, not the delayed key release. */
-                if(a->center_down) return 0;
-                int handled=play_action(a,Q2_GAME_CENTER,0,0);
-                a->center_down=1;
-                return handled;
-            }
-            if(a->center_down) {
-                a->center_down=0;
-                return 0; /* release after a handled press: don't double-flap */
-            }
-            /* Preserve Dino Runner's release-only protocol for older firmware. */
-            return play_action(a,Q2_GAME_CENTER,0,0);
-        }
-        return 0;
-    }
-    if(message[0]=='t') {
-        int x=0,y=0;
-        if(!touch_point(message+4,&x,&y))return 0;
+        if(key!=KEY_CENTER) return 0;
         if(message[2]=='d') {
-            if(a->touch_down) return 0;
-            int handled=play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
-            a->touch_down=1;
-            a->touch_flapped=1;
+            if(a->center_down) return 0;
+            int handled=play_action(a,Q2_GAME_CENTER,0,0);
+            a->center_down=1;
             return handled;
         }
-        if(message[2]=='u') {
-            int fallback=!a->touch_down || !a->touch_flapped;
-            a->touch_down=0;
-            a->touch_flapped=0;
-            if(fallback) return play_action(a,Q2_GAME_CENTER,x,y);
+        if(a->center_down) {
+            a->center_down=0;
             return 0;
+        }
+        return play_action(a,Q2_GAME_CENTER,0,0);
+    }
+    if(message[0]=='t') {
+        if(message[2]=='u') {
+            /* Q2's pointer-up/abort may not contain a valid in-range point.
+             * Always end the gesture. Only release-only taps flap here. */
+            int had_contact=a->touch_down;
+            a->touch_down=0;
+            a->runner.touch_active=0;
+            if(!had_contact) return play_action(a,Q2_GAME_CENTER,0,0);
+            return 0;
+        }
+        if(message[2]=='d' || message[2]=='m') {
+            int x=0,y=0;
+            if(!touch_point(message+4,&x,&y)) return 0;
+            if(a->touch_down) return 0; /* held/moving finger */
+            /* Some devices begin a gesture with move; don't miss first contact. */
+            int handled=play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
+            a->touch_down=1;
+            return handled;
         }
     }
     return 0;

@@ -19,7 +19,7 @@ Download `q2-flappybird.zip` from a successful Actions build artifact (extract i
 - **Tap screen:** start, flap, resume, or retry (on touch-down, as in Dino Runner).
 - **Return:** pause; Return again while paused to exit.
 - **Centre while paused:** resume without an accidental flap.
-- Wheel rotation and touch movement do not trigger flaps. A touch-down flaps immediately; a release-only touch event is also accepted as a fallback, without double-flapping.
+- Wheel rotation and touch movement do not trigger flaps. A touch-down flaps immediately. The first move is accepted if down was missed; release-only events are supported as a fallback without double-flapping.
 
 ## Build
 Ubuntu/WSL: install `clang lld make gcc zip`, then `make check && make`. Output: `dist/q2-flappybird.zip`. For a direct GitHub release, push a version tag, e.g. `v1.0.0`.
