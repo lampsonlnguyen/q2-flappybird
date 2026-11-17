@@ -102,7 +102,7 @@ int app_input(FlappyApp *a,const char *m) {
         if(!parse_int(m+2,&v) || v==0)return 0;
         return q2_game_input(&a->runner,(Q2GameInput){Q2_GAME_WHEEL,v,0,0});
     }
-    if(m[2]!=' ' || m[3]!=' ' || !parse_int(m+4,&v))return 0;
+    if(m[2]!='u' || m[3]!=' ' || !parse_int(m+4,&v))return 0;
     if(m[0]=='k' && m[2]=='u') {
         if(v==KEY_RETURN) { a->quit=1; return 1; }
         if(v==KEY_PLAY) {

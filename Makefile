@@ -21,7 +21,11 @@ $(CARD)/LICENSE.txt: LICENSE
 	cp $< $@
 dist/q2-flappybird.zip: $(CARD)/q2-flappybird $(CARD)/q2app $(CARD)/LICENSE.txt
 	cd dist && rm -f q2-flappybird.zip && zip -q q2-flappybird.zip .flappybird/q2-flappybird .flappybird/q2app .flappybird/LICENSE.txt
-check:
+build/input-test: tests/input_test.c src/app.c core/game_framework.c src/app.h core/game_framework.h
+	mkdir -p build
+	$(CC) $(CFLAGS) -std=c11 -Isrc -Icore -o $@ tests/input_test.c src/app.c core/game_framework.c
+check: build/input-test
+	./build/input-test
 	mkdir -p build
 	$(CC) $(CFLAGS) -std=c11 -Isrc -Icore -c src/app.c -o build/app-test.o
 	$(CC) $(CFLAGS) -std=c11 -Isrc -Icore -c src/render.c -o build/render-test.o
