@@ -19,6 +19,8 @@ static void game_reset(void *context) {
     a->dead=0;
     a->ticks=0;
     a->spawn_ticks=0;
+    a->touch_down=0;
+    a->touch_flapped=0;
     for(int i=0;i<PIPE_COUNT;++i) {
         a->pipes[i].x=SCREEN_W+50+i*172;
         a->pipes[i].gap_y=92+(int)(random_next(a)%82u);
@@ -94,9 +96,17 @@ static int play_action(FlappyApp *a,Q2GameAction action,int x,int y) {
     if(a->runner.status==Q2_GAME_OVER) q2_game_restart(&a->runner);
     return q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
 }
+/* Parse a touch point with the same landscape coordinates as Q2 Pod.
+ * Detect complete taps even if a firmware version drops the down event. */
+static int touch_point(const char *p,int *x,int *y) {
+    if(!parse_int(p,x)) return 0;
+    while(*p==' ') ++p;
+    if(*p=='-') ++p;
+    while(*p>='0' && *p<='9') ++p;
+    if(*p!=' ' || !parse_int(p,y)) return 0;
+    return *x>=0 && *x<SCREEN_W && *y>=0 && *y<SCREEN_H;
+}
 int app_input(FlappyApp *a,const char *message) {
-    /* Matches q2-dino-runner: k u 218 for centre, t d X Y for touch.
-     * Ignore wheel movement, touch release, and repeated touch movement. */
     if(!message || !message[0] || message[1]!=' ' ||
        !message[2] || message[3]!=' ') return 0;
     if(message[0]=='k' && message[2]=='u') {
@@ -109,16 +119,24 @@ int app_input(FlappyApp *a,const char *message) {
         }
         if(key==KEY_CENTER) return play_action(a,Q2_GAME_CENTER,0,0);
     }
-    if(message[0]=='t' && message[2]=='d') {
-        const char *p=message+4;
+    if(message[0]=='t') {
         int x=0,y=0;
-        if(!parse_int(p,&x)) return 0;
-        while(*p==' ') ++p;
-        if(*p=='-') ++p;
-        while(*p>='0' && *p<='9') ++p;
-        if(*p!=' ' || !parse_int(p,&y) ||
-           x<0 || x>=SCREEN_W || y<0 || y>=SCREEN_H) return 0;
-        return play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
+        if(!touch_point(message+4,&x,&y))return 0;
+        if(message[2]=='d') {
+            /* Flap at contact, as Dino Runner does. */
+            a->touch_down=1;
+            a->touch_flapped=1;
+            return play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
+        }
+        if(message[2]=='u') {
+            /* Firmware may send a release without a usable down event.
+             * Never flap twice when both events arrive. */
+            int fallback=!a->touch_down || !a->touch_flapped;
+            a->touch_down=0;
+            a->touch_flapped=0;
+            if(fallback) return play_action(a,Q2_GAME_CENTER,x,y);
+            return 1;
+        }
     }
     return 0;
 }
