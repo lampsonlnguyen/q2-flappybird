@@ -19,12 +19,14 @@ enum { SYS_READ=4003,SYS_WRITE=4004,SYS_OPEN=4005,SYS_CLOSE=4006,
        SYS_MUNMAP=4091,SYS_FSYNC=4118,SYS_BIND=4169,SYS_RECV=4175,
        SYS_SOCKET=4183,SYS_POLL=4188,SYS_CLOCK_GETTIME=4263,
        FB_VSCREEN=0x4600,FB_FSCREEN=0x4602,FB_PAN=0x4606,
-       O_WRONLY=1,O_RDWR=2,O_CREAT=0x100,O_TRUNC=0x200,O_CLOEXEC=0x80000,
+       O_RDONLY=0,O_WRONLY=1,O_RDWR=2,O_CREAT=0x100,O_TRUNC=0x200,O_CLOEXEC=0x80000,
        MSG_DONTWAIT=0x40,FRAME_MS=17 };
 #define INPUT_SOCKET "/tmp/q2-flappybird.input.sock"
 #define SAVE_FILE "/mnt/mmc/.flappybird/highscores"
 #define SAVE_TEMP "/mnt/mmc/.flappybird/highscores.new"
 #define SAVE_MAGIC 0x51324642u
+#define DEBUG_FLAG "/mnt/mmc/.flappybird/debug-input"
+#define DEBUG_LOG "/mnt/mmc/.flappybird/input.log"
 static FlappyApp app;
 
 void *memset(void *dest,int value,__SIZE_TYPE__ length) {
@@ -63,6 +65,50 @@ static void save(void) {
     if(sc(SYS_CLOSE,fd,0,0,0,0,0))good=0;
     if(good && !sc(SYS_RENAME,(long)SAVE_TEMP,(long)SAVE_FILE,0,0,0,0)){app.dirty=0;return;}
     sc(SYS_UNLINK,(long)SAVE_TEMP,0,0,0,0,0);
+}
+/* Optional hardware input trace: a marker on the SD card enables logging.
+ * Never runs during ordinary gameplay. Raw datagrams precede app_input(). */
+static int debug_fd=-1;
+static unsigned debug_count;
+static void debug_begin(void) {
+    int flag=(int)sc(SYS_OPEN,(long)DEBUG_FLAG,O_RDONLY|O_CLOEXEC,0,0,0,0);
+    if(flag<0)return;
+    sc(SYS_CLOSE,flag,0,0,0,0,0);
+    debug_fd=(int)sc(SYS_OPEN,(long)DEBUG_LOG,
+        O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC,0644,0,0,0);
+    if(debug_fd>=0) {
+        static const char header[]=
+            "Q2 Flappy Bird raw input trace (ms raw accepted status y256)\\n"
+            "status: 0=running 1=paused 2=game-over; max 1000 events\\n";
+        sc(SYS_WRITE,debug_fd,(long)header,sizeof header-1,0,0,0);
+    }
+}
+static unsigned debug_number(char *out,unsigned value) {
+    char reverse[12];unsigned n=0,i=0;
+    do {reverse[n++]=(char)('0'+value%10u);value/=10u;}while(value && n<sizeof reverse);
+    while(n)out[i++]=reverse[--n];
+    return i;
+}
+static void debug_event(unsigned ms,const char *raw,unsigned raw_len,
+                        int accepted,unsigned status,int y256) {
+    if(debug_fd<0 || debug_count++>=1000)return;
+    char line[150];unsigned n=0;
+    n+=debug_number(line+n,ms);
+    line[n++]=' ';
+    if(raw_len>64)raw_len=64;
+    for(unsigned i=0;i<raw_len;++i) {
+        unsigned char c=(unsigned char)raw[i];
+        line[n++]=(c>=32 && c<=126)?(char)c:'?';
+    }
+    line[n++]=' ';
+    line[n++]=(char)('0'+!!accepted);
+    line[n++]=' ';
+    n+=debug_number(line+n,status);
+    line[n++]=' ';
+    if(y256<0) {line[n++]='-'; y256=-y256;}
+    n+=debug_number(line+n,(unsigned)y256);
+    line[n++]='\\n';
+    sc(SYS_WRITE,debug_fd,(long)line,n,0,0,0);
 }
 static int bind_input(void) {
     struct { unsigned short family;char path[108]; }addr={1,INPUT_SOCKET};
@@ -103,6 +149,7 @@ int q2_main(void) {
     }
     load();
     app_init(&app,now_ms(),saved.best);
+    debug_begin();
     unsigned visible=front;
     int can_pan=rows>=2*SCREEN_W && (front==0||front==SCREEN_W);
     struct {int fd;short events,revents;} poll_input={input,1,0};
@@ -141,10 +188,14 @@ int q2_main(void) {
         long n=sc(SYS_RECV,input,(long)message,sizeof message-1,MSG_DONTWAIT,0,0);
         if(n>0){
             message[n]=0;
-            if(app_input(&app,message))redraw=1;
+            int accepted=app_input(&app,message);
+            debug_event(now_ms(),message,(unsigned)n,accepted,
+                        (unsigned)app.runner.status,app.y256);
+            if(accepted)redraw=1;
         }
     }
     if(app.dirty)save();
+    if(debug_fd>=0)sc(SYS_CLOSE,debug_fd,0,0,0,0,0);
     if(visible!=front){
         var[5]=front;
         sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0);
