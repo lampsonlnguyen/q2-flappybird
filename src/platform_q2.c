@@ -78,8 +78,8 @@ static void debug_begin(void) {
         O_WRONLY|O_CREAT|O_TRUNC|O_CLOEXEC,0644,0,0,0);
     if(debug_fd>=0) {
         static const char header[]=
-            "Q2 Flappy Bird raw input trace (ms raw accepted status y256)\\n"
-            "status: 0=running 1=paused 2=game-over; max 1000 events\\n";
+            "Q2 Flappy Bird raw input trace (ms raw accepted status y256)\n"
+            "status: 0=running 1=paused 2=game-over; max 1000 events\n";
         sc(SYS_WRITE,debug_fd,(long)header,sizeof header-1,0,0,0);
     }
 }
@@ -107,7 +107,7 @@ static void debug_event(unsigned ms,const char *raw,unsigned raw_len,
     line[n++]=' ';
     if(y256<0) {line[n++]='-'; y256=-y256;}
     n+=debug_number(line+n,(unsigned)y256);
-    line[n++]='\\n';
+    line[n++]='\n';
     sc(SYS_WRITE,debug_fd,(long)line,n,0,0,0);
 }
 static int bind_input(void) {
