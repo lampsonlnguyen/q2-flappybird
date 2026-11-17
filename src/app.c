@@ -29,11 +29,11 @@ static void flap(FlappyApp *a) {
     a->started=1;
     a->velocity256=-5*256;
 }
-/* Input follows Dino Runner: only a released physical centre key flaps.
- * Wheel movement and touchscreen signals are not gameplay commands. */
+/* Match Dino Runner: centre key release and touchscreen press flap.
+ * Wheel rotation and touch-release packets must not flap. */
 static int game_input(void *context,Q2GameInput event) {
     FlappyApp *a=(FlappyApp *)context;
-    if(event.action!=Q2_GAME_CENTER) return 0;
+    if(event.action!=Q2_GAME_CENTER && event.action!=Q2_GAME_TOUCH_DOWN) return 0;
     flap(a);
     return 1;
 }
@@ -89,28 +89,36 @@ static int parse_int(const char *s,int *out) {
     *out=neg?-n:n;
     return 1;
 }
+static int play_action(FlappyApp *a,Q2GameAction action,int x,int y) {
+    if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
+    if(a->runner.status==Q2_GAME_OVER) q2_game_restart(&a->runner);
+    return q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
+}
 int app_input(FlappyApp *a,const char *message) {
-    /* Same key-release protocol as q2-dino-runner/src/app.c:
-     * k u 218 = centre, k u 170 = return.
-     * Ignore click-wheel motion and touch packets entirely. */
+    /* Matches q2-dino-runner: k u 218 for centre, t d X Y for touch.
+     * Ignore wheel movement, touch release, and repeated touch movement. */
     if(!message || !message[0] || message[1]!=' ' ||
-       !message[2] || message[3]!=' ' ||
-       message[0]!='k' || message[2]!='u') return 0;
-    int key=0;
-    if(!parse_int(message+4,&key)) return 0;
-    if(key==KEY_RETURN) {
-        if(a->runner.status==Q2_GAME_PAUSED) a->quit=1;
-        else q2_game_pause(&a->runner);
-        return 1;
+       !message[2] || message[3]!=' ') return 0;
+    if(message[0]=='k' && message[2]=='u') {
+        int key=0;
+        if(!parse_int(message+4,&key)) return 0;
+        if(key==KEY_RETURN) {
+            if(a->runner.status==Q2_GAME_PAUSED) a->quit=1;
+            else q2_game_pause(&a->runner);
+            return 1;
+        }
+        if(key==KEY_CENTER) return play_action(a,Q2_GAME_CENTER,0,0);
     }
-    if(key==KEY_CENTER) {
-        if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
-        else if(a->runner.status==Q2_GAME_OVER) {
-            q2_game_restart(&a->runner);
-            flap(a);
-        } else
-            return q2_game_input(&a->runner,(Q2GameInput){Q2_GAME_CENTER,0,0,0});
-        return 1;
+    if(message[0]=='t' && message[2]=='d') {
+        const char *p=message+4;
+        int x=0,y=0;
+        if(!parse_int(p,&x)) return 0;
+        while(*p==' ') ++p;
+        if(*p=='-') ++p;
+        while(*p>='0' && *p<='9') ++p;
+        if(*p!=' ' || !parse_int(p,&y) ||
+           x<0 || x>=SCREEN_W || y<0 || y>=SCREEN_H) return 0;
+        return play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
     }
     return 0;
 }
