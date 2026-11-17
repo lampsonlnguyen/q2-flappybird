@@ -11,7 +11,7 @@ typedef struct {
     Q2GameRunner runner;
     int y256, velocity256, started, dead, score, best, dirty, quit;
     int ticks, seed, spawn_ticks;
-    int touch_down, center_down;
+    int center_down;
     FlappyPipe pipes[PIPE_COUNT];
 } FlappyApp;
 void app_init(FlappyApp *app, unsigned seed, unsigned best);

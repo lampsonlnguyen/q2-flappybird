@@ -19,7 +19,6 @@ static void game_reset(void *context) {
     a->dead=0;
     a->ticks=0;
     a->spawn_ticks=0;
-    a->touch_down=0;
     a->center_down=0;
     for(int i=0;i<PIPE_COUNT;++i) {
         a->pipes[i].x=SCREEN_W+50+i*172;
@@ -80,81 +79,57 @@ void app_init(FlappyApp *a,unsigned seed,unsigned best) {
     a->best=(int)best;
     q2_game_init(&a->runner,&hooks,a,17);
 }
-static int parse_int(const char *s,int *out) {
-    int neg=0,n=0,found=0;
-    while(*s==' ')++s;
-    if(*s=='-'){neg=1;++s;}
-    while(*s>='0'&&*s<='9'){
-        if(n>100000)return 0;
-        n=n*10+*s++-'0';found=1;
-    }
-    if(!found)return 0;
-    *out=neg?-n:n;
-    return 1;
+/* Same coordinate parser as q2-dino-runner/src/app.c. */
+static int decimal(const char **message) {
+    const char *p=*message;
+    while(*p==' ') ++p;
+    if(*p<'0'||*p>'9') return -1;
+    int value=0;
+    while(*p>='0'&&*p<='9'&&value<1000)
+        value=value*10+*p++-'0';
+    *message=p;
+    return *p>='0'&&*p<='9' ? -1 : value;
 }
 static int play_action(FlappyApp *a,Q2GameAction action,int x,int y) {
     if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
     if(a->runner.status==Q2_GAME_OVER) q2_game_restart(&a->runner);
     return q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
 }
-/* Parse the two coordinates that Q2 Pod sends on touch down/move.
- * Unlike a touch release, these coordinates must be within the display. */
-static int touch_point(const char *p,int *x,int *y) {
-    if(!parse_int(p,x)) return 0;
-    while(*p==' ') ++p;
-    if(*p=='-') ++p;
-    while(*p>='0' && *p<='9') ++p;
-    if(*p!=' ' || !parse_int(p,y)) return 0;
-    return *x>=0 && *x<SCREEN_W && *y>=0 && *y<SCREEN_H;
-}
 int app_input(FlappyApp *a,const char *message) {
-    /* Firmware input protocol from DiamondBond/q2-pod patch/addon.c:
-     * k d/u KEY, t d/m/u X Y, w N. */
     if(!message || !message[0] || message[1]!=' ' ||
        !message[2] || message[3]!=' ') return 0;
-    if(message[0]=='k' && (message[2]=='u'||message[2]=='d')) {
-        int key=0;
-        if(!parse_int(message+4,&key)) return 0;
-        if(key==KEY_RETURN) {
-            if(message[2]!='u') return 0;
+    const char *args=message+4;
+    int value=decimal(&args);
+    if(message[0]=='k') {
+        if(value<0) return 0;
+        if(value==KEY_RETURN && message[2]=='u') {
             if(a->runner.status==Q2_GAME_PAUSED) a->quit=1;
             else q2_game_pause(&a->runner);
             return 1;
         }
-        if(key!=KEY_CENTER) return 0;
+        if(value!=KEY_CENTER) return 0;
         if(message[2]=='d') {
             if(a->center_down) return 0;
             int handled=play_action(a,Q2_GAME_CENTER,0,0);
             a->center_down=1;
             return handled;
         }
-        if(a->center_down) {
-            a->center_down=0;
-            return 0;
-        }
-        return play_action(a,Q2_GAME_CENTER,0,0);
-    }
-    if(message[0]=='t') {
         if(message[2]=='u') {
-            /* Q2's pointer-up/abort may not contain a valid in-range point.
-             * Always end the gesture. Only release-only taps flap here. */
-            int had_contact=a->touch_down;
-            a->touch_down=0;
-            a->runner.touch_active=0;
-            if(!had_contact) return play_action(a,Q2_GAME_CENTER,0,0);
-            return 0;
+            if(a->center_down) {
+                a->center_down=0;
+                return 0;
+            }
+            return play_action(a,Q2_GAME_CENTER,0,0);
         }
-        if(message[2]=='d' || message[2]=='m') {
-            int x=0,y=0;
-            if(!touch_point(message+4,&x,&y)) return 0;
-            if(a->touch_down) return 0; /* held/moving finger */
-            /* Some devices begin a gesture with move; don't miss first contact. */
-            int handled=play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
-            a->touch_down=1;
-            return handled;
-        }
+        return 0;
     }
-    return 0;
+    /* Dino Runner's exact touch-down parser: act when the panel is pressed,
+     * not on pointer movement or release. */
+    if(message[0]!='t' || message[2]!='d') return 0;
+    int y=decimal(&args);
+    if(value<0 || value>=SCREEN_W || y<0 || y>=SCREEN_H)
+        return 0;
+    return play_action(a,Q2_GAME_TOUCH_DOWN,value,y);
 }
 int app_animated(const FlappyApp *a){return a->runner.status==Q2_GAME_RUNNING;}
 int app_tick(FlappyApp *a,unsigned elapsed_ms) {
