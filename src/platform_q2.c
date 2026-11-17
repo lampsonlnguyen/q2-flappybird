@@ -145,7 +145,7 @@ int q2_main(void) {
         }
     }
     if(app.dirty)save();
-    if(debug_fd>=0)sc(SYS_CLOSE,debug_fd,0,0,0,0,0);
+
     if(visible!=front){
         var[5]=front;
         sc(SYS_IOCTL,fb,FB_PAN,(long)var,0,0,0);
