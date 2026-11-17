@@ -38,7 +38,8 @@ static void text(u32 *d,unsigned s,int x,int y,const char *str,u32 color,int sca
             unsigned alpha=px[off[idx]+yy*w+xx];
             if(alpha<80 || !q2_game_ui_safe_point(SCREEN_W,SCREEN_H,x+xx,y+yy))continue;
             fill(d,s,x+xx,y+yy,1,1,color);
-        }x+=w;
+        }
+        x+=w;
     }
 }
 static void centered(u32*d,unsigned s,int y,const char*str,u32 color,int scale){
