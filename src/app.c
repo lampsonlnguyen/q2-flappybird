@@ -124,9 +124,10 @@ int app_input(FlappyApp *a,const char *message) {
         if(!touch_point(message+4,&x,&y))return 0;
         if(message[2]=='d') {
             /* Flap at contact, as Dino Runner does. */
+            int handled=play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
             a->touch_down=1;
             a->touch_flapped=1;
-            return play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
+            return handled;
         }
         if(message[2]=='u') {
             /* Firmware may send a release without a usable down event.
