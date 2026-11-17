@@ -6,7 +6,7 @@ A standalone, SD-card-installable Flappy Bird-style game for the Shanling Q2 wit
 - Single-button flapping, scrolling pipe pairs, collision detection, score and persisted best score.
 - Fixed-step, allocation-free C gameplay using `Q2GameRunner` from Q2 Arcade.
 - Native Q2 375x320 landscape framebuffer, procedural graphics (no SDL, artwork, or external assets).
-- Centre button release or touchscreen tap to flap; Return pauses, Centre or tap resumes, Return again exits; Centre or tap restarts after collision. Wheel rotation is ignored.
+- Centre button press (without waiting for release) or touchscreen tap to flap; Return pauses, Centre or tap resumes, Return again exits; Centre or tap restarts after collision. Wheel rotation is ignored.
 - Native MIPS32 binary with SD-card game manifest, no firmware modification.
 - GitHub Actions builds ZIP artifacts and publishes ZIP assets on version tags.
 
@@ -15,7 +15,7 @@ Download `q2-flappybird.zip` from a successful Actions build artifact (extract i
 
 ## Controls
 
-- **Centre click:** start, flap, and retry after a collision.
+- **Centre click:** start, flap, and retry immediately on button down; key release does not flap again.
 - **Tap screen:** start, flap, resume, or retry (on touch-down, as in Dino Runner).
 - **Return:** pause; Return again while paused to exit.
 - **Centre while paused:** resume without an accidental flap.

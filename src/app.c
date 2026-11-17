@@ -21,6 +21,7 @@ static void game_reset(void *context) {
     a->spawn_ticks=0;
     a->touch_down=0;
     a->touch_flapped=0;
+    a->center_down=0;
     for(int i=0;i<PIPE_COUNT;++i) {
         a->pipes[i].x=SCREEN_W+50+i*172;
         a->pipes[i].gap_y=92+(int)(random_next(a)%82u);
@@ -30,6 +31,8 @@ static void game_reset(void *context) {
 static void flap(FlappyApp *a) {
     a->started=1;
     a->velocity256=-5*256;
+    /* Show the flap immediately, without waiting for a physics tick. */
+    a->y256-=2*256;
 }
 /* Match Dino Runner: centre key release and touchscreen press flap.
  * Wheel rotation and touch-release packets must not flap. */
@@ -109,34 +112,48 @@ static int touch_point(const char *p,int *x,int *y) {
 int app_input(FlappyApp *a,const char *message) {
     if(!message || !message[0] || message[1]!=' ' ||
        !message[2] || message[3]!=' ') return 0;
-    if(message[0]=='k' && message[2]=='u') {
+    if(message[0]=='k' && (message[2]=='u'||message[2]=='d')) {
         int key=0;
         if(!parse_int(message+4,&key)) return 0;
         if(key==KEY_RETURN) {
+            if(message[2]!='u') return 0;
             if(a->runner.status==Q2_GAME_PAUSED) a->quit=1;
             else q2_game_pause(&a->runner);
             return 1;
         }
-        if(key==KEY_CENTER) return play_action(a,Q2_GAME_CENTER,0,0);
+        if(key==KEY_CENTER) {
+            if(message[2]=='d') {
+                /* Act on the initial press, not the delayed key release. */
+                if(a->center_down) return 0;
+                int handled=play_action(a,Q2_GAME_CENTER,0,0);
+                a->center_down=1;
+                return handled;
+            }
+            if(a->center_down) {
+                a->center_down=0;
+                return 0; /* release after a handled press: don't double-flap */
+            }
+            /* Preserve Dino Runner's release-only protocol for older firmware. */
+            return play_action(a,Q2_GAME_CENTER,0,0);
+        }
+        return 0;
     }
     if(message[0]=='t') {
         int x=0,y=0;
         if(!touch_point(message+4,&x,&y))return 0;
         if(message[2]=='d') {
-            /* Flap at contact, as Dino Runner does. */
+            if(a->touch_down) return 0;
             int handled=play_action(a,Q2_GAME_TOUCH_DOWN,x,y);
             a->touch_down=1;
             a->touch_flapped=1;
             return handled;
         }
         if(message[2]=='u') {
-            /* Firmware may send a release without a usable down event.
-             * Never flap twice when both events arrive. */
             int fallback=!a->touch_down || !a->touch_flapped;
             a->touch_down=0;
             a->touch_flapped=0;
             if(fallback) return play_action(a,Q2_GAME_CENTER,x,y);
-            return 1;
+            return 0;
         }
     }
     return 0;
