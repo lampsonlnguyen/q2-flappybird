@@ -3,6 +3,8 @@
  * Startup/syscall pattern adapted from DiamondBond's Buddy/q2-fidget card.
  */
 #include "app.h"
+#include "audio.h"
+#include <signal.h>
 long sc(long n,long a,long b,long c,long d,long e,long f);
 __asm__(".text\n.set noreorder\n.globl sc\nsc:\n"
         "move $2, $4\nmove $4, $5\nmove $5, $6\nmove $6, $7\n"
@@ -10,9 +12,7 @@ __asm__(".text\n.set noreorder\n.globl sc\nsc:\n"
         "addiu $29, $29, -32\nsw $8, 16($29)\nsw $9, 20($29)\n"
         "syscall\naddiu $29, $29, 32\n"
         "beqz $7, 1f\nnop\nsubu $2, $0, $2\n1: jr $31\nnop\n"
-        ".globl __start\n__start:\n"
-        "lw $4, 0($29)\naddiu $5, $29, 4\nli $8, -8\nand $29, $29, $8\n"
-        "addiu $29, $29, -32\njal q2_main\nnop\nmove $4, $2\nli $2, 4246\nsyscall\n1: b 1b\nnop\n.set reorder\n");
+        ".set reorder\n");
 
 enum { SYS_READ=4003,SYS_WRITE=4004,SYS_OPEN=4005,SYS_CLOSE=4006,
        SYS_UNLINK=4010,SYS_RENAME=4038,SYS_IOCTL=4054,SYS_MMAP=4090,
@@ -26,6 +26,11 @@ enum { SYS_READ=4003,SYS_WRITE=4004,SYS_OPEN=4005,SYS_CLOSE=4006,
 #define SAVE_TEMP "/mnt/mmc/.flappybird/highscores.new"
 #define SAVE_MAGIC 0x51324642u
 static FlappyApp app;
+static volatile sig_atomic_t stopping;
+static void on_term(int sig) { (void)sig; stopping=1; }
+static void play_pending(void) {
+    if(app.sound) { audio_play(app.sound); app.sound=0; }
+}
 
 void *memset(void *dest,int value,__SIZE_TYPE__ length) {
     unsigned char *p=dest;
@@ -73,7 +78,9 @@ static int bind_input(void) {
     sc(SYS_CLOSE,fd,0,0,0,0,0);
     return -1;
 }
-int q2_main(void) {
+int main(int argc,char **argv) {
+    signal(SIGTERM,on_term);
+    signal(SIGINT,on_term);
     unsigned var[40],fix[17];
     int fb=(int)sc(SYS_OPEN,(long)"/dev/fb0",O_RDWR|O_CLOEXEC,0,0,0,0);
     if(fb<0)return 1;
@@ -103,12 +110,13 @@ int q2_main(void) {
     }
     load();
     app_init(&app,now_ms(),saved.best);
+    (void)audio_start(argc>0?argv[0]:"",argc>1?argv[1]:0,argc>2?argv[2]:0);
     unsigned visible=front;
     int can_pan=rows>=2*SCREEN_W && (front==0||front==SCREEN_W);
     struct {int fd;short events,revents;} poll_input={input,1,0};
     unsigned previous=now_ms(),deadline=previous;
     int redraw=1;
-    while(!app.quit) {
+    while(!app.quit && !stopping) {
         unsigned now=now_ms();
         int animated=app_animated(&app);
         if((animated&&(int)(deadline-now)<=0)||redraw) {
@@ -117,6 +125,7 @@ int q2_main(void) {
             previous=now;
             deadline=now+FRAME_MS;
             if(animated)app_tick(&app,elapsed);
+            play_pending();
             unsigned target=can_pan?(visible?0:SCREEN_W):visible;
             app_render(&app,pixels+target*stride,stride);
             if(can_pan){
@@ -142,9 +151,11 @@ int q2_main(void) {
         if(n>0){
             message[n]=0;
             if(app_input(&app,message))redraw=1;
+            play_pending();
         }
     }
     if(app.dirty)save();
+    audio_stop();
 
     if(visible!=front){
         var[5]=front;
@@ -154,5 +165,5 @@ int q2_main(void) {
     sc(SYS_UNLINK,(long)INPUT_SOCKET,0,0,0,0,0);
     sc(SYS_MUNMAP,mapped,(long)fix[5],0,0,0,0);
     sc(SYS_CLOSE,fb,0,0,0,0,0);
-    return app.quit?0:1;
+    return app.quit||stopping?0:1;
 }
