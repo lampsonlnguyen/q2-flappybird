@@ -32,6 +32,7 @@ static void flap(FlappyApp *a) {
     a->velocity256=-5*256;
     /* Show the flap immediately, without waiting for a physics tick. */
     a->y256-=2*256;
+    a->sound=1; /* flap */
 }
 /* Centre key presses and first touchscreen contact flap immediately. */
 static int game_input(void *context,Q2GameInput event) {
@@ -66,12 +67,16 @@ static void game_step(void *context,unsigned ms) {
         if(!p->passed && p->x+PIPE_WIDTH<BIRD_X-BIRD_RADIUS) {
             p->passed=1;
             ++a->score;
+            a->sound=2; /* passed pipe */
             if(a->score>a->best) { a->best=a->score; a->dirty=1; }
         }
         if(BIRD_X+BIRD_RADIUS-3>p->x && BIRD_X-BIRD_RADIUS+3<p->x+PIPE_WIDTH &&
            (top<p->gap_y || bottom>p->gap_y+PIPE_GAP)) a->dead=1;
     }
-    if(a->dead) q2_game_over(&a->runner);
+    if(a->dead) {
+        a->sound=3; /* collision overrides point */
+        q2_game_over(&a->runner);
+    }
 }
 static const Q2GameHooks hooks={game_input,game_step,0,game_reset};
 void app_init(FlappyApp *a,unsigned seed,unsigned best) {
@@ -92,10 +97,13 @@ static int decimal(const char **message) {
     return *p>='0'&&*p<='9' ? -1 : value;
 }
 static int play_action(FlappyApp *a,Q2GameAction action,int x,int y) {
+    int starting=!a->started || a->runner.status==Q2_GAME_OVER;
     a->exit_menu=0;
     if(a->runner.status==Q2_GAME_PAUSED) q2_game_resume(&a->runner);
     if(a->runner.status==Q2_GAME_OVER) q2_game_restart(&a->runner);
-    return q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
+    int handled=q2_game_input(&a->runner,(Q2GameInput){action,0,x,y});
+    if(handled && starting) a->sound=4; /* start/restart */
+    return handled;
 }
 int app_input(FlappyApp *a,const char *message) {
     if(!message || !message[0] || message[1]!=' ' ||
