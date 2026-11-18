@@ -5,7 +5,7 @@ A standalone, SD-card-installable Flappy Bird-style game for the Shanling Q2 wit
 ## Features
 - Single-button flapping, scrolling pipe pairs, collision detection, score and persisted best score.
 - Fixed-step, allocation-free C gameplay using `Q2GameRunner` from Q2 Arcade.
-- Native Q2 375x320 landscape framebuffer, procedural graphics (no SDL, artwork, or external assets).
+- Native Q2 375x320 landscape framebuffer, procedural graphics (no SDL or artwork).
 - Centre button press (without waiting for release) or touchscreen tap to flap; Return pauses, Centre or tap resumes, Return again exits; Centre or tap restarts after collision. Wheel rotation is ignored.
 - Native MIPS32 binary with SD-card game manifest, no firmware modification.
 - GitHub Actions builds ZIP artifacts and publishes ZIP assets on version tags.
@@ -25,6 +25,10 @@ Download `q2-flappybird.zip` from a successful Actions build artifact (extract i
 
 ## Build
 Ubuntu/WSL: install `clang lld make gcc zip`, then `make check && make`. Output: `dist/q2-flappybird.zip`. For a direct GitHub release, push a version tag, e.g. `v1.0.0`.
+
+## Sound effects
+
+The game plays `sfx_wing.wav` on flaps, `sfx_point.wav` after a pipe, `sfx_die.wav` on collision, and `sfx_swooshing.wav` when starting/restarting. Audio runs on an ALSA worker thread and does not block button handling. The `q2app` manifest requests the firmware audio handoff (`audio=1`). The WAV files must be 16-bit PCM mono/stereo; playback may be unavailable if the firmware cannot open its audio device. Verify sound asset redistribution permissions before publishing releases.
 
 ## Credits
 Mechanics and gameplay structure informed by alxyng's SDL Flappy Bird clone; no original code, sprites, or audio were copied. Q2 framework and platform adaptation from q2-arcade, GPL-3.0-or-later. See LICENSE.
