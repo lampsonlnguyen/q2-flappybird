@@ -8,7 +8,7 @@ A standalone, SD-card-installable Flappy Bird-style game for the Shanling Q2 wit
 - Native Q2 375x320 landscape framebuffer, procedural graphics (no SDL or artwork).
 - Centre button press (without waiting for release) or touchscreen tap to flap; Return pauses, Centre or tap resumes, Return again exits; Centre or tap restarts after collision. Wheel rotation is ignored.
 - Native MIPS32 binary with SD-card game manifest, no firmware modification.
-- GitHub Actions builds ZIP artifacts and publishes ZIP assets on version tags.
+- GitHub Actions always runs portable tests; device ZIP builds and releases require a configured trusted Q2 ALSA sysroot.
 
 ## Install
 Download `q2-flappybird.zip` from a successful Actions build artifact (extract its outer Actions ZIP first) or a tagged GitHub release. Extract it to the microSD root so the hidden directory is `.flappybird/`, containing `q2app`, `q2-flappybird`, and `LICENSE.txt`. Reopen Library → Games to refresh. Requires Q2 Pod firmware supporting SD-card games.
