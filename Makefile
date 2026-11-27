@@ -31,8 +31,12 @@ $(CARD)/sounds.stamp: $(SOUNDS)
 	mkdir -p $(CARD)/sounds
 	cp $(SOUNDS) $(CARD)/sounds/
 	@touch $@
-dist/q2-flappybird.zip: $(CARD)/q2-flappybird $(CARD)/q2app $(CARD)/LICENSE.txt $(CARD)/sounds.stamp
-	cd dist && rm -f q2-flappybird.zip && zip -q q2-flappybird.zip .flappybird/q2-flappybird .flappybird/q2app .flappybird/LICENSE.txt .flappybird/sounds/*.wav
+$(CARD)/%.png: %.png
+	mkdir -p $(@D)
+	cp $< $@
+
+dist/q2-flappybird.zip: $(CARD)/q2-flappybird $(CARD)/q2app $(CARD)/LICENSE.txt $(CARD)/sounds.stamp $(CARD)/icon.png $(CARD)/icon-40.png $(CARD)/pane.png
+	cd dist && rm -f q2-flappybird.zip && zip -q q2-flappybird.zip .flappybird/q2-flappybird .flappybird/q2app .flappybird/LICENSE.txt .flappybird/sounds/*.wav .flappybird/icon.png .flappybird/icon-40.png .flappybird/pane.png
 build/input-test: tests/input_test.c src/app.c core/game_framework.c src/app.h core/game_framework.h
 	mkdir -p build
 	$(CC) $(CFLAGS) -std=c11 -Isrc -Icore -o $@ tests/input_test.c src/app.c core/game_framework.c
